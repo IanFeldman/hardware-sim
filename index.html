@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <script src="app.js"></script>
+    </head>
+    
+    <body onload="RunLoop();" style="font-family:'Andale Mono'">
+        <div id="spinner"></div>
+        <div id="debug">Welcome to hardware sim</div>
+        <br>
+        <div>
+            <select name="nodeSelect" id="nodeSelect">
+                <option value="INPUT">INPUT</option>
+                <option value="AND">AND</option>
+                <option value="NAND">NAND</option>
+                <option value="OR">OR</option>
+                <option value="XOR">XOR</option>
+                <option value="OUTPUT">OUTPUT</option>
+            </select>
+            <div onclick="AddNode();">Add Node</div>
+        </div>
+        <br>
+        <div id="field" style="white-space: pre-line;"></div>
+    </body>
+</html>
