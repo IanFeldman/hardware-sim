@@ -1,6 +1,9 @@
 # hardware-sim
 
+Logic gate simulator - still under development.
+
 ## Controls
+Mode is shown in the top right
 ### Simulate Mode
 | Key | Description |
 | --- | --- |
