@@ -3,14 +3,19 @@
     <head>
         <meta charset="utf-8">
         <script src="app.js"></script>
+        <link rel="stylesheet" type ="text/css" href="style.css">
+        <title>Hardware Sim</title>
     </head>
     
-    <body onload="RunLoop();" style="font-family:'Andale Mono'">
-        <div id="spinner"></div>
-        <div id="debug">Welcome to hardware sim</div>
+    <body onload="RunLoop();">
+        <div class="container">
+            <div class="float-left" id="spinner"></div>
+            <div class="float-left" id="debug">Welcome to hardware sim</div>
+            <div class="float-right" id="state">SIMULATE</div>
+        </div>
         <br>
-        <div>
-            <select name="nodeSelect" id="nodeSelect">
+        <div id="container">
+            <select name="nodeSelect" class="float-left" id="nodeSelect">
                 <option value="INPUT">INPUT</option>
                 <option value="AND">AND</option>
                 <option value="NAND">NAND</option>
@@ -21,6 +26,9 @@
             <div onclick="AddNode();">Add Node</div>
         </div>
         <br>
-        <div id="field" style="white-space: pre-line;"></div>
+        <div id="container">
+            <div id="field"></div>
+            <div class="float-right" id="info"></div>
+        </div>
     </body>
 </html>

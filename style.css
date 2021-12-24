@@ -1,0 +1,25 @@
+* {
+    font-family:'Andale Mono';
+}
+
+.container {
+    /* to contain floated children */
+    overflow: hidden;
+}
+
+.float-left {
+    float: left;
+    margin-right: 10px;
+}
+
+.float-right {
+    float:right;
+    margin-right: 50px;
+}
+
+#field {
+    /* for new line char to work */
+    white-space: pre-line;
+    /* for info to go to the right */
+    float: left;
+}
