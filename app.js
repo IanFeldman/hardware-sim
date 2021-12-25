@@ -1,12 +1,12 @@
 var sim;
 var ticks;
 var nodes = [];
-var emptyChar = ".";
+var emptyChar = "&#183";
 var flashEmptyChar = ":";
 var flashInterval = 20;
 var cannotPlaceChar = "x";
-var nodeChar = "o";
-var cursorChar = "+";
+var nodeChar = "=";
+var cursorChar = "&#164";
 var cursor;
 
 /*
@@ -73,7 +73,6 @@ class Cursor {
     constructor() {
         this.x = 0;
         this.y = 0;
-        this.char = cursorChar;
     }
 }
 
@@ -119,7 +118,7 @@ function UpdateField() {
         }
     }
     else if (sim.state == STATE.INSPECT) {
-        tempGrid[cursor.y][cursor.x] = cursor.char;
+        tempGrid[cursor.y][cursor.x] = cursorChar;
     }
     
     let gridText = "";
@@ -158,6 +157,7 @@ document.addEventListener('keydown', function(event) {
                     break;
                 case 73: // i
                     SetState(STATE.INSPECT);
+                    GetInfo();
                     break;
             }
             break;
@@ -214,30 +214,39 @@ document.addEventListener('keydown', function(event) {
                 case 65: // left
                     if (cursor.x > 0)
                         cursor.x -= 1;
+                    GetInfo();
                     break;
                 case 68: // right
                     if (cursor.x < sim.width - 1)
                         cursor.x += 1;
+                    GetInfo();
                     break;
                 case 87: // up
                     if (cursor.y > 0)
                         cursor.y -= 1;
+                    GetInfo();
                     break;
                 case 83: // down
                     if (cursor.y < sim.height - 1)
                         cursor.y += 1;
+                    GetInfo();
                     break;
                 case 13: // enter
-                    GetInfo();
+                    NodeAction();
                     break;
                 case 8: // del
                     DeleteNode();
+                    GetInfo();
+                    break;
+                case 82: // r
+                    Rename();
                     break;
                 case 80: // p
                     Debug("Error: cannot pause while in inspect mode")
                     break;
                 case 73: // i
                     SetState(STATE.SIMULATE);
+                    ClearInfoText();
                     break;
             }
             break;
@@ -302,18 +311,43 @@ function CancelPlace() {
     Debug("Action canceled");
 }
 
+// gets node that the cursor is hovering over
+function GetNode() {
+    // loop over all nodes to see what we're hovering over
+    for (node of nodes) {
+        // check x
+        if (cursor.x >= node.x && cursor.x < node.x + node.width) {
+            // check y
+            if (cursor.y >= node.y && cursor.y < node.y + node.height) {
+                // we are looking at this node
+                return node;
+            }
+        }
+    }
+    return null;
+}
+
 function GetInfo() {
     let n = GetNode();
     let text = "";
     let info = document.getElementById("info");
 
     // cursor is not in a node
-    if (n == null)
-        text = "empty space";
-    else
-        text = node.name;
-    
+    if (n == null) {
+        info.innerHTML = "";
+        return;
+    }
+
+    for (i of n.info) {
+        text += i + ": " + n[i] + "\n";
+    }
+    //text = node.type + ": " + node.name;
     info.innerHTML = text;
+}
+
+function ClearInfoText() {
+    let info = document.getElementById("info");
+    info.innerHTML = "";
 }
 
 function DeleteNode() {
@@ -340,23 +374,42 @@ function DeleteNode() {
     Debug("Node deleted");
 }
 
-// gets node that the cursor is hovering over
-function GetNode() {
-    // loop over all nodes to see what we're hovering over
-    for (node of nodes) {
-        // check x
-        if (cursor.x >= node.x && cursor.x < node.x + node.width) {
-            // check y
-            if (cursor.y >= node.y && cursor.y < node.y + node.height) {
-                // we are looking at this node
-                return node;
-            }
-        }
+function Rename() {
+    let n = GetNode();
+    
+    if (n == null) {
+        Debug("Error no node to rename here");
+        return;
     }
-    return null;
+    
+    let newName = prompt("What will you rename this " + n.type + "?");
+    if (newName == "")
+        newName = n.type;
+    n.SetName(newName);
+    GetInfo(); // update info text
+    
+    // change grid
+    let x = n.x + Math.floor(n.width / 2);
+    let y = n.y + Math.floor(n.height / 2);
+    sim.grid[y][x] = n.name.substr(0,1);
+}
+
+// pressing enter over a node will execute a function specific to that node
+function NodeAction() {
+    let n = GetNode();
+    
+    if (n == null) {
+        Debug("Error no node to activate here");
+        return;
+    }
+    
+    n.Action();
+    GetInfo();
 }
 
 function AddNode() {
+    ClearInfoText();
+    
     // cannot add a new node while already placing one
     if (sim.state == STATE.PLACE) {
         Debug("Error: cannot add new node while in place mode");
@@ -393,8 +446,8 @@ function AddNode() {
 */
 
 class Node {
-    constructor(name, w, h) {
-        this.name = name;
+    constructor(type, name, w, h) {
+        this.type = type;
         this.x = 0;
         this.y = 0;
         this.width = w;
@@ -405,25 +458,38 @@ class Node {
                 this.shape += nodeChar;
             }
         }
+        this.info = [];
+        this.SetName(name);
     }
+    SetName(name) {
+        let halfW = Math.floor(this.width / 2);
+        let halfH = Math.floor(this.height / 2);
+        let index = this.width * halfH + halfW;
+        this.shape = StringReplace(this.shape, index, name);
+        this.name = name;
+    }
+    Action() {}
 }
 
 class Input extends Node {
     constructor() {
-        super("Input node", 3, 3);
-        this.shape = StringReplace(this.shape, 4, "I");
-        this.output = 0;
+        super("Input node", "I", 3, 3);
+        this.out = 0;
+        this.info = ["type", "name", "out"];
     }
-    Toggle() {
+    Action() { // toggle value
         // flip from 0 to 1 and vice versa
-        this.output = 1 - this.output;
+        this.out = 1 - this.out;
     }
 }
 
 class And extends Node {
     constructor() {
-        super("And gate", 5, 5);
-        this.shape = StringReplace(this.shape, 12, "A");
+        super("And gate", "A", 15, 10);
+        this.in1 = "a";
+        this.in2 = "b";
+        this.out = "c";
+        this.info = ["type", "name", "in1", "in2", "out"];
     }
 }
 

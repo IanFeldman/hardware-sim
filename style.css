@@ -23,3 +23,7 @@
     /* for info to go to the right */
     float: left;
 }
+
+#info {
+    white-space: pre-line;
+}
