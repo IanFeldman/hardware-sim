@@ -28,7 +28,8 @@ Mode is shown in the top right
 | `a` | Move cursor left |
 | `s` | Move cursor down |
 | `d` | Move cursor right |
-| `enter` | Give info on node |
+| `r` | Rename node |
+| `enter` | Execute node action |
 | `delete` | Delete node |
 | `i` | Toggle Inspect Mode |
 
