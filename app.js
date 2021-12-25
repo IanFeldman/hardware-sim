@@ -468,7 +468,7 @@ class Node {
         this.shape = StringReplace(this.shape, index, name);
         this.name = name;
     }
-    Action() {}
+    Action() { Debug("No action on this node"); }
 }
 
 class Input extends Node {
@@ -480,12 +480,13 @@ class Input extends Node {
     Action() { // toggle value
         // flip from 0 to 1 and vice versa
         this.out = 1 - this.out;
+        Debug("Output value changed");
     }
 }
 
 class And extends Node {
     constructor() {
-        super("And gate", "A", 15, 10);
+        super("And gate", "A", 5, 5);
         this.in1 = "a";
         this.in2 = "b";
         this.out = "c";
