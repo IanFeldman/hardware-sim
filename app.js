@@ -5,7 +5,10 @@ var emptyChar = "&#183";
 var flashEmptyChar = ":";
 var flashInterval = 20;
 var cannotPlaceChar = "x";
-var nodeChar = "=";
+var nodeChar = "-";
+var nodeWallChar = "=";
+var nodeOutChar = "o";
+var nodeInChar = "i";
 var cursorChar = "&#164";
 var cursor;
 
@@ -71,8 +74,7 @@ class Simulation {
 
 class Cursor {
     constructor() {
-        this.x = 0;
-        this.y = 0;
+        this.pos = new Coord(0, 0);
     }
 }
 
@@ -106,10 +108,10 @@ function UpdateField() {
     if (sim.state == STATE.PLACE) {
         let currNode = nodes[nodes.length - 1];                         // most recent node
         for (let j = 0; j < currNode.height; j++) {                     // loop over node height
-            let rowToChange = currNode.y + j;                           // rows to change will be node pos.y + (0 to height-1)
+            let rowToChange = currNode.pos.y + j;                       // rows to change will be node pos.y + (0 to height-1)
             for (let i = 0; i < currNode.width; i++) {                  // loop over node width
-                let columnToChange = currNode.x + i;                    // column to change will be node pos.x + (0 to width-1)
-                let nodeChar = currNode.shape[j * currNode.width + i];  // char to put there
+                let columnToChange = currNode.pos.x + i;                // column to change will be node pos.x + (0 to width-1)
+                let nodeChar = currNode.shape[j][i];                    // char to put there
                 if (tempGrid[rowToChange][columnToChange] != emptyChar) // if there is a node there, indicate w 'x'
                     tempGrid[rowToChange][columnToChange] = cannotPlaceChar;
                 else
@@ -118,7 +120,7 @@ function UpdateField() {
         }
     }
     else if (sim.state == STATE.INSPECT) {
-        tempGrid[cursor.y][cursor.x] = cursorChar;
+        tempGrid[cursor.pos.y][cursor.pos.x] = cursorChar;
     }
     
     let gridText = "";
@@ -173,27 +175,27 @@ document.addEventListener('keydown', function(event) {
             break;
         case (STATE.PLACE):
             let currNode = nodes[nodes.length - 1];
-            let xPos = currNode.x;
-            let yPos = currNode.y;
+            let xPos = currNode.pos.x;
+            let yPos = currNode.pos.y;
             let width = currNode.width;
             let height = currNode.height;
             
             switch (event.keyCode) {
                 case 65: // left
                     if (CanMove(xPos - 1, yPos, width, height))
-                        currNode.x -= 1;
+                        currNode.pos.x -= 1;
                     break;
                 case 68: // right
                     if (CanMove(xPos + 1, yPos, width, height))
-                        currNode.x += 1;
+                        currNode.pos.x += 1;
                     break;
                 case 87: // up
                     if (CanMove(xPos, yPos - 1, width, height))
-                        currNode.y -= 1;
+                        currNode.pos.y -= 1;
                     break;
                 case 83: // down
                     if (CanMove(xPos, yPos + 1, width, height))
-                        currNode.y += 1;
+                        currNode.pos.y += 1;
                     break;
                 case 13: // enter
                     PlaceNode();
@@ -212,23 +214,23 @@ document.addEventListener('keydown', function(event) {
         case (STATE.INSPECT):
             switch (event.keyCode) {
                 case 65: // left
-                    if (cursor.x > 0)
-                        cursor.x -= 1;
+                    if (cursor.pos.x > 0)
+                        cursor.pos.x -= 1;
                     GetInfo();
                     break;
                 case 68: // right
-                    if (cursor.x < sim.width - 1)
-                        cursor.x += 1;
+                    if (cursor.pos.x < sim.width - 1)
+                        cursor.pos.x += 1;
                     GetInfo();
                     break;
                 case 87: // up
-                    if (cursor.y > 0)
-                        cursor.y -= 1;
+                    if (cursor.pos.y > 0)
+                        cursor.pos.y -= 1;
                     GetInfo();
                     break;
                 case 83: // down
-                    if (cursor.y < sim.height - 1)
-                        cursor.y += 1;
+                    if (cursor.pos.y < sim.height - 1)
+                        cursor.pos.y += 1;
                     GetInfo();
                     break;
                 case 13: // enter
@@ -276,10 +278,10 @@ function PlaceNode() {
     // also add all points to the arrays
     let currNode = nodes[nodes.length - 1];                             // most recent node
     for (let j = 0; j < currNode.height; j++) {                         // loop over node height
-        let rowToChange = currNode.y + j;                               // rows to change will be node pos.y + (0 to height-1)
+        let rowToChange = currNode.pos.y + j;                           // rows to change will be node pos.y + (0 to height-1)
         for (let i = 0; i < currNode.width; i++) {                      // loop over node width
-            let columnToChange = currNode.x + i;                        // column to change will be node pos.x + (0 to width-1)
-            let nodeChar = currNode.shape[j * currNode.width + i];      // char to put there
+            let columnToChange = currNode.pos.x + i;                    // column to change will be node pos.x + (0 to width-1)
+            let nodeChar = currNode.shape[j][i];                        // char to put there
             if (sim.grid[rowToChange][columnToChange] != emptyChar) {   // if there is a node there, cannot place
                 Debug("Error: cannot place on top of other node");
                 return;
@@ -316,9 +318,9 @@ function GetNode() {
     // loop over all nodes to see what we're hovering over
     for (node of nodes) {
         // check x
-        if (cursor.x >= node.x && cursor.x < node.x + node.width) {
+        if (cursor.pos.x >= node.pos.x && cursor.pos.x < node.pos.x + node.width) {
             // check y
-            if (cursor.y >= node.y && cursor.y < node.y + node.height) {
+            if (cursor.pos.y >= node.pos.y && cursor.pos.y < node.pos.y + node.height) {
                 // we are looking at this node
                 return node;
             }
@@ -359,9 +361,9 @@ function DeleteNode() {
     }
     
     for (let j = 0; j < n.height; j++) {                            // loop over node height
-        let rowToChange = n.y + j;                                  // rows to change will be node pos.y + (0 to height-1)
+        let rowToChange = n.pos.y + j;                              // rows to change will be node pos.y + (0 to height-1)
         for (let i = 0; i < n.width; i++) {                         // loop over node width
-            let columnToChange = n.x + i;                           // column to change will be node pos.x + (0 to width-1)
+            let columnToChange = n.pos.x + i;                       // column to change will be node pos.x + (0 to width-1)
             sim.grid[rowToChange][columnToChange] = emptyChar;      // set that point to empty
         }
     }
@@ -389,8 +391,8 @@ function Rename() {
     GetInfo(); // update info text
     
     // change grid
-    let x = n.x + Math.floor(n.width / 2);
-    let y = n.y + Math.floor(n.height / 2);
+    let x = n.pos.x + Math.floor(n.width / 2);
+    let y = n.pos.y + Math.floor(n.height / 2);
     sim.grid[y][x] = n.name.substr(0,1);
 }
 
@@ -448,25 +450,40 @@ function AddNode() {
 class Node {
     constructor(type, name, w, h) {
         this.type = type;
-        this.x = 0;
-        this.y = 0;
+        this.pos = new Coord(0, 0);
         this.width = w;
         this.height = h;
-        this.shape = "";
-        for (let j = 0; j < h; j++) {
-            for (let i = 0; i < w; i++) {
-                this.shape += nodeChar;
-            }
-        }
-        this.info = [];
+        this.shape = [];
+        this.InitShape();
         this.SetName(name);
+        this.info = [];
+        this.out = 0;
+    }
+    InitShape() {
+        for (let j = 0; j < this.height; j++) {
+            let row = [];
+            for (let i = 0; i < this.width; i++) {
+                let char = nodeChar;
+                if (i == 0 || i == this.width - 1)
+                    char = nodeWallChar;
+                else if (j == 0 || j == this.height - 1)
+                    char = nodeWallChar;
+                row.push(char);
+            }
+            this.shape.push(row);
+        }
     }
     SetName(name) {
         let halfW = Math.floor(this.width / 2);
         let halfH = Math.floor(this.height / 2);
-        let index = this.width * halfH + halfW;
-        this.shape = StringReplace(this.shape, index, name);
+        this.shape[halfH][halfW] = name;
         this.name = name;
+    }
+    CreatePort(name, pos, char) {
+        this[name] = "[none]";
+        this[name + "Pos"] = pos;
+        this.shape[pos.y][pos.x] = char;
+        this.info.push(name);
     }
     Action() { Debug("No action on this node"); }
 }
@@ -474,8 +491,8 @@ class Node {
 class Input extends Node {
     constructor() {
         super("Input node", "I", 3, 3);
-        this.out = 0;
         this.info = ["type", "name", "out"];
+        this.CreatePort("outPort", new Coord(2, 1), nodeOutChar);
     }
     Action() { // toggle value
         // flip from 0 to 1 and vice versa
@@ -487,10 +504,10 @@ class Input extends Node {
 class And extends Node {
     constructor() {
         super("And gate", "A", 5, 5);
-        this.in1 = "a";
-        this.in2 = "b";
-        this.out = "c";
-        this.info = ["type", "name", "in1", "in2", "out"];
+        this.info = ["type", "name", "out"];
+        this.CreatePort("inPort1", new Coord(0, 1), nodeInChar);
+        this.CreatePort("inPort2", new Coord(0, 3), nodeInChar);
+        this.CreatePort("outPort", new Coord(4, 2), nodeOutChar);
     }
 }
 
@@ -515,4 +532,11 @@ function SetState(state) {
     
     let s = document.getElementById("state");
     s.innerHTML = state.name;
+}
+
+class Coord {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
 }
