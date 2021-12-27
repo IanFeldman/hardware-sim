@@ -238,10 +238,14 @@ document.addEventListener('keydown', function(event) {
                     break;
                 case 8: // del
                     DeleteNode();
-                    GetInfo();
+                    ClearInfoText();
                     break;
                 case 82: // r
                     Rename();
+                    break;
+                case 77: // m
+                    MoveNode();
+                    ClearInfoText();
                     break;
                 case 80: // p
                     Debug("Error: cannot pause while in inspect mode")
@@ -360,6 +364,15 @@ function DeleteNode() {
         return;
     }
     
+    // get index of node and remove it from array
+    let index = nodes.indexOf(n);
+    if (index > -1)
+        nodes.splice(index, 1);
+    else {
+        Debug("Error cannot find node in nodes[]");
+        return;
+    }
+    
     for (let j = 0; j < n.height; j++) {                            // loop over node height
         let rowToChange = n.pos.y + j;                              // rows to change will be node pos.y + (0 to height-1)
         for (let i = 0; i < n.width; i++) {                         // loop over node width
@@ -367,11 +380,6 @@ function DeleteNode() {
             sim.grid[rowToChange][columnToChange] = emptyChar;      // set that point to empty
         }
     }
-    
-    // get index of node and remove it from array
-    let index = nodes.indexOf(n);
-    if (index > -1)
-        nodes.splice(index, 1);
     
     Debug("Node deleted");
 }
@@ -394,6 +402,20 @@ function Rename() {
     let x = n.pos.x + Math.floor(n.width / 2);
     let y = n.pos.y + Math.floor(n.height / 2);
     sim.grid[y][x] = n.name.substr(0,1);
+}
+
+function MoveNode() {
+    let n = GetNode();
+    if (n == null) {
+        Debug("Error no node to move here");
+        return;
+    }
+
+    DeleteNode();   // delete node
+    nodes.push(n);  // re add it
+    Debug("Moving node");
+    
+    SetState(STATE.PLACE);
 }
 
 // pressing enter over a node will execute a function specific to that node
@@ -476,7 +498,7 @@ class Node {
     SetName(name) {
         let halfW = Math.floor(this.width / 2);
         let halfH = Math.floor(this.height / 2);
-        this.shape[halfH][halfW] = name;
+        this.shape[halfH][halfW] = name.substr(0,1);
         this.name = name;
     }
     CreatePort(name, pos, char) {
