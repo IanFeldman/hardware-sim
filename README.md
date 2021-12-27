@@ -7,7 +7,7 @@ Mode is shown in the top right
 ### Simulate Mode
 | Key | Description |
 | --- | --- |
-| `click 'Add Node'` | Add a node of specified type; Enter Place Mode |
+| `click 'Add Node'` | Add a node of specified type + Enter Place Mode |
 | `i` | Toggle Inspect Mode |
 | `p` | Toggle Pause Mode |
 
@@ -29,6 +29,7 @@ Mode is shown in the top right
 | `s` | Move cursor down |
 | `d` | Move cursor right |
 | `r` | Rename node |
+| `m` | Move node + Enter Place Mode |
 | `enter` | Execute node action |
 | `delete` | Delete node |
 | `i` | Toggle Inspect Mode |
