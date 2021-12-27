@@ -10,7 +10,9 @@ var nodeWallChar = "=";
 var nodeOutChar = "o";
 var nodeInChar = "i";
 var cursorChar = "&#164";
+var connectCursorChar = "+";
 var cursor;
+var selectedPort = null;
 
 /*
  ====================================================================================================
@@ -25,6 +27,7 @@ class STATE {
     static PAUSED = new STATE("PAUSED");
     static PLACE = new STATE("PLACE");
     static INSPECT = new STATE("INSPECT");
+    static CONNECT = new STATE("CONNECT");
 
     constructor(name) {
         this.name = name;
@@ -44,10 +47,12 @@ async function RunLoop() {
     
     while (true) {
         if (sim.state != STATE.PAUSED) {
-            UpdateSpinner();
+            if (sim.state == STATE.SIMULATE || sim.state == STATE.INSPECT)
+                Evaluate();
             UpdateField();
-            await new Promise(r => setTimeout(r, sim.updateInterval));
+            UpdateSpinner();
             ticks += 1;
+            await new Promise(r => setTimeout(r, sim.updateInterval));
         }
         else
             await new Promise(r => setTimeout(r, sim.updateInterval));
@@ -78,24 +83,44 @@ class Cursor {
     }
 }
 
-function UpdateSpinner()  {
-    let spinner = document.getElementById("spinner");
-    let spinChar = ">";
-    switch(ticks % 4) {
-        case 0:
-            spinChar += "|";
-            break;
-        case 1:
-            spinChar += "/";
-            break;
-        case 2:
-            spinChar += "&mdash;";
-            break;
-        case 3:
-            spinChar += "\\";
-            break;
+// LINEAR
+function Evaluate() {
+    let nextSet = [];
+    for (n of nodes) {
+        if (n.constructor.name == "Input") {
+            for (p of n.ports) {                                // all ports
+                for (c of p.connections) {                      // all connections
+                    if (!nextSet.includes(c.node))              // add connected node if not already in nextSet
+                        nextSet.push(c.node);
+                }
+            }
+        }
     }
-    spinner.innerHTML = spinChar;
+
+    while (nextSet.length > 0) {                                // while there is a new layer of nodes
+        let currSet = [...nextSet];                             // create copy of nextSet
+        nextSet = [];                                           // clear nextSet
+        for (n of currSet) {                                    // for every node of currSet
+            let inputs = [];                                    // create list to put inputs
+            for (p of n.ports) {                                // for every port of node
+                if (p.char == nodeInChar) {                     // if it is an input port
+                    if (p.connections.length > 0) {             // if input is connected to something
+                        let c = p.connections[0];               // get connection (should only be one connection to input)
+                        inputs.push(c.node.out);                // add connection's node's output to our input list
+                    }
+                    else
+                        inputs.push(0);                         // input port is 0 if not connected to anything
+                }
+                else {                                          // if it is an output port add its node to nextSet
+                    for (c of p.connections) {                  // for every connection
+                        if (!nextSet.includes(c.node))
+                            nextSet.push(c.node);               // add connected node to nextSet if not already there
+                    }
+                }
+            }
+            n.Logic(inputs);                                    // do node logic
+        }
+    }
 }
 
 function UpdateField() {
@@ -104,25 +129,55 @@ function UpdateField() {
     for (let i = 0; i < sim.grid.length; i++)
         tempGrid[i] = sim.grid[i].slice();
     
-    // add proposed node location to temp grid
-    if (sim.state == STATE.PLACE) {
-        let currNode = nodes[nodes.length - 1];                         // most recent node
-        for (let j = 0; j < currNode.height; j++) {                     // loop over node height
-            let rowToChange = currNode.pos.y + j;                       // rows to change will be node pos.y + (0 to height-1)
-            for (let i = 0; i < currNode.width; i++) {                  // loop over node width
-                let columnToChange = currNode.pos.x + i;                // column to change will be node pos.x + (0 to width-1)
-                let nodeChar = currNode.shape[j][i];                    // char to put there
-                if (tempGrid[rowToChange][columnToChange] != emptyChar) // if there is a node there, indicate w 'x'
-                    tempGrid[rowToChange][columnToChange] = cannotPlaceChar;
-                else
-                    tempGrid[rowToChange][columnToChange] = nodeChar;       // add to temp grid
+    switch(sim.state) {
+        case STATE.SIMULATE:
+            for (n of nodes) {
+                if (n.constructor.name == "Output") {
+                    // change grid to output
+                    let x = n.pos.x + Math.floor(n.width / 2);
+                    let y = n.pos.y + Math.floor(n.height / 2);
+                    tempGrid[y][x] = n.out;
+                }
             }
-        }
+            break;
+        case STATE.INSPECT:
+            for (n of nodes) {
+                if (n.constructor.name == "Output") {
+                    // change grid to output
+                    let x = n.pos.x + Math.floor(n.width / 2);
+                    let y = n.pos.y + Math.floor(n.height / 2);
+                    tempGrid[y][x] = n.out;
+                }
+            }
+            tempGrid[cursor.pos.y][cursor.pos.x] = cursorChar;
+            break;
+        case STATE.PLACE:                                                       // add proposed node location to temp grid
+            let currNode = nodes[nodes.length - 1];                             // most recent node
+            for (let j = 0; j < currNode.height; j++) {                         // loop over node height
+                let rowToChange = currNode.pos.y + j;                           // rows to change will be node pos.y + (0 to height-1)
+                for (let i = 0; i < currNode.width; i++) {                      // loop over node width
+                    let columnToChange = currNode.pos.x + i;                    // column to change will be node pos.x + (0 to width-1)
+                    let nodeChar = currNode.shape[j][i];                        // char to put there
+                    if (tempGrid[rowToChange][columnToChange] != emptyChar)     // if there is a node there, indicate w 'x'
+                        tempGrid[rowToChange][columnToChange] = cannotPlaceChar;
+                    else
+                        tempGrid[rowToChange][columnToChange] = nodeChar;       // add to temp grid
+                }
+            }
+            break;
+        case STATE.CONNECT:
+            // show connection lines
+            // flash ports
+            for (n of nodes) {
+                for (p of n.ports) {
+                    if (ticks % flashInterval < flashInterval / 2)
+                        tempGrid[n.pos.y + p.pos.y][n.pos.x + p.pos.x] = nodeWallChar;
+                }
+            }
+            tempGrid[cursor.pos.y][cursor.pos.x] = connectCursorChar;
+            break;
     }
-    else if (sim.state == STATE.INSPECT) {
-        tempGrid[cursor.pos.y][cursor.pos.x] = cursorChar;
-    }
-    
+
     let gridText = "";
     let char = "";
     for (row of tempGrid) {
@@ -144,6 +199,26 @@ function UpdateField() {
     field.innerHTML = gridText;
 }
 
+function UpdateSpinner()  {
+    let spinner = document.getElementById("spinner");
+    let spinChar = ">";
+    switch(ticks % 4) {
+        case 0:
+            spinChar += "|";
+            break;
+        case 1:
+            spinChar += "/";
+            break;
+        case 2:
+            spinChar += "&mdash;";
+            break;
+        case 3:
+            spinChar += "\\";
+            break;
+    }
+    spinner.innerHTML = spinChar;
+}
+
 /*
  ====================================================================================================
     USER INPUT
@@ -161,6 +236,9 @@ document.addEventListener('keydown', function(event) {
                     SetState(STATE.INSPECT);
                     GetInfo();
                     break;
+                case 67: // c
+                    SetState(STATE.CONNECT);
+                    break;
             }
             break;
         case (STATE.PAUSED):
@@ -170,6 +248,9 @@ document.addEventListener('keydown', function(event) {
                     break;
                 case 73: // i
                     Debug("Error: must be in simulation state to enter inspect mode")
+                    break;
+                case 67: // c
+                    Debug("Error: cannot connect while in pause mode");
                     break;
             }
             break;
@@ -209,7 +290,12 @@ document.addEventListener('keydown', function(event) {
                 case 73: // i
                     Debug("Error: cannot inspect while in place mode")
                     break;
+                case 67: // c
+                    Debug("Error: cannot connect while in place mode");
+                    break;
             }
+            cursor.pos.x = currNode.pos.x;
+            cursor.pos.y = currNode.pos.y;
             break;
         case (STATE.INSPECT):
             switch (event.keyCode) {
@@ -254,8 +340,48 @@ document.addEventListener('keydown', function(event) {
                     SetState(STATE.SIMULATE);
                     ClearInfoText();
                     break;
+                case 67: // c
+                    SetState(STATE.CONNECT);
+                    ClearInfoText();
+                    break;
             }
             break;
+        case (STATE.CONNECT):
+            switch (event.keyCode) {
+                case 65: // left
+                    if (cursor.pos.x > 0)
+                        cursor.pos.x -= 1;
+                    break;
+                case 68: // right
+                    if (cursor.pos.x < sim.width - 1)
+                        cursor.pos.x += 1;
+                    break;
+                case 87: // up
+                    if (cursor.pos.y > 0)
+                        cursor.pos.y -= 1;
+                    break;
+                case 83: // down
+                    if (cursor.pos.y < sim.height - 1)
+                        cursor.pos.y += 1;
+                    break;
+                case 13: // enter
+                    SelectPort();
+                    break;
+                case 8: // del
+                    break;
+                case 80: // p
+                    Debug("Error: cannot pause while in connect mode")
+                    break;
+                case 73: // i
+                    SetState(STATE.INSPECT);
+                    GetInfo();
+                    break;
+                case 67: // c
+                    SetState(STATE.SIMULATE);
+                    break;
+            }
+            break;
+        
     }
 });
 
@@ -314,7 +440,7 @@ function CancelPlace() {
     // exit place mode
     SetState(STATE.SIMULATE);
     
-    Debug("Action canceled");
+    Debug("Node Deleted");
 }
 
 // gets node that the cursor is hovering over
@@ -343,11 +469,22 @@ function GetInfo() {
         info.innerHTML = "";
         return;
     }
-
+    
+    // manual elements
     for (i of n.info) {
         text += i + ": " + n[i] + "\n";
     }
-    //text = node.type + ": " + node.name;
+    // ports
+    for (p of n.ports) {
+        let connectionName = "";
+        if (p.connections.length == 0)
+            connectionName += "[none]";
+        for (c of p.connections)
+            connectionName += c.name + "[" + c.node.name + "] "
+            
+        text += p.name + ": " + connectionName + "\n";
+    }
+
     info.innerHTML = text;
 }
 
@@ -423,7 +560,7 @@ function NodeAction() {
     let n = GetNode();
     
     if (n == null) {
-        Debug("Error no node to activate here");
+        Debug("Error: no node to activate here");
         return;
     }
     
@@ -431,36 +568,86 @@ function NodeAction() {
     GetInfo();
 }
 
-function AddNode() {
-    ClearInfoText();
+function SelectPort() {
+    let n = GetNode();
     
-    // cannot add a new node while already placing one
-    if (sim.state == STATE.PLACE) {
-        Debug("Error: cannot add new node while in place mode");
+    if (n == null) {
+        Debug("No port to select here");
         return;
     }
     
-    // get node from selection thing
-    let nodeName = document.getElementById("nodeSelect").value;
-    // create node
-    var newNode;
-    switch (nodeName) {
-        case "INPUT":
-            newNode = new Input();
+    // FIND PORT
+    // compare node ports positions to cursor pos
+    let currPort = null;
+    for (port of n.ports) {
+        let pX = n.pos.x + port.pos.x;
+        let pY = n.pos.y + port.pos.y;
+        if (pX == cursor.pos.x && pY == cursor.pos.y) {
+            currPort = port;
             break;
-        case "AND":
-            newNode = new And();
-            break;
-        default:
-            newNode = new Input();
-            break;
+        }
     }
+    if (currPort == null) {
+        Debug("No port to select here");
+        return;
+    }
+    /*
+    if (currPort.connection != null) {
+        Debug("Port already connected");
+        return;
+    }
+    */
     
-    // add to array
-    nodes.push(newNode);
-    SetState(STATE.PLACE);
-    
-    Debug("Placing new " + nodeName + " node");
+    // LOGIC
+    // set this as selectedPort or as target port
+    if (selectedPort == null) {
+        selectedPort = currPort;
+        Debug("Port selected");
+    }
+    else {
+        /*
+        if (selectedPort.node == currPort.node) {
+            Debug("Error: ports cannot be connected to other ports on the same node");
+            return;
+        }
+         */
+        if (selectedPort.char == currPort.char) {
+            Debug("Error: ports cannot be of the same type");
+            return;
+        }
+        // disconnect ports
+        for (p1 of selectedPort.connections) {
+            for (p2 of currPort.connections) {
+                if (p1 == currPort && p2 == selectedPort) {
+                    Debug("Connection removed between " + selectedPort.name + " and " + currPort.name);
+                    // remove selectedPort connection:
+                    let index = selectedPort.connections.indexOf(p1);
+                    if (index > -1)
+                        selectedPort.connections.splice(index, 1);
+                    else {
+                        Debug("Error removing connection from " + selectedPort.name);
+                        return;
+                    }
+                    // remove currPort connection:
+                    index = currPort.connections.indexOf(p2);
+                    if (index > -1)
+                        currPort.connections.splice(index, 1)
+                    else {
+                        Debug("Error removing connection from " + currPort.name);
+                        return;
+                    }
+                    selectedPort = null;
+                    return;
+                }
+            }
+        }
+        // connect ports
+        selectedPort.connections.push(currPort);
+        currPort.connections.push(selectedPort)
+        // selected port to null
+        Debug("Connection made between " + selectedPort.name + " and " + currPort.name);
+        selectedPort = null;
+    }
 }
 
 /*
@@ -480,6 +667,7 @@ class Node {
         this.SetName(name);
         this.info = [];
         this.out = 0;
+        this.ports = [];
     }
     InitShape() {
         for (let j = 0; j < this.height; j++) {
@@ -498,16 +686,16 @@ class Node {
     SetName(name) {
         let halfW = Math.floor(this.width / 2);
         let halfH = Math.floor(this.height / 2);
-        this.shape[halfH][halfW] = name.substr(0,1);
+        this.shape[halfH][halfW] = name.substr(0, 1);
         this.name = name;
     }
     CreatePort(name, pos, char) {
-        this[name] = "[none]";
-        this[name + "Pos"] = pos;
-        this.shape[pos.y][pos.x] = char;
-        this.info.push(name);
+        let p = new Port(name, pos, char, this);    // create port
+        this.ports.push(p);                         // add it to ports[]
+        this.shape[pos.y][pos.x] = char;            // add to shape
     }
     Action() { Debug("No action on this node"); }
+    Logic(inputs) {}
 }
 
 class Input extends Node {
@@ -523,6 +711,18 @@ class Input extends Node {
     }
 }
 
+class Output extends Node {
+    constructor() {
+        super("Output", "O", 3, 3);
+        this.info = ["type", "name", "out"];
+        this.CreatePort("inPort", new Coord(0, 1), nodeInChar);
+        this.CreatePort("outPort", new Coord(2, 1), nodeOutChar);
+    }
+    Logic(inputs) {
+        this.out = inputs[0];
+    }
+}
+
 class And extends Node {
     constructor() {
         super("And gate", "A", 5, 5);
@@ -531,6 +731,28 @@ class And extends Node {
         this.CreatePort("inPort2", new Coord(0, 3), nodeInChar);
         this.CreatePort("outPort", new Coord(4, 2), nodeOutChar);
     }
+    Logic(inputs) {
+        if (inputs[0] + inputs[1] == 2)
+            this.out = 1;
+        else
+            this.out = 0;
+    }
+}
+
+class Or extends Node {
+    constructor() {
+        super("Or gate", "O", 5, 5);
+        this.info = ["type", "name", "out"];
+        this.CreatePort("inPort1", new Coord(0, 1), nodeInChar);
+        this.CreatePort("inPort2", new Coord(0, 3), nodeInChar);
+        this.CreatePort("outPort", new Coord(4, 2), nodeOutChar);
+    }
+    Logic(inputs) {
+        if (inputs[0] + inputs[1] > 0)
+            this.out = 1;
+        else
+            this.out = 0;
+    }
 }
 
 /*
@@ -538,6 +760,44 @@ class And extends Node {
     FUNCTIONALITY
  ====================================================================================================
 */
+
+function AddNode() {
+    ClearInfoText();
+    
+    // cannot add a new node while already placing one
+    if (sim.state == STATE.PLACE) {
+        Debug("Error: cannot add new node while in place mode");
+        return;
+    }
+    
+    // get node from selection thing
+    let nodeName = document.getElementById("nodeSelect").value;
+    // create node
+    var newNode;
+    switch (nodeName) {
+        case "INPUT":
+            newNode = new Input();
+            break;
+        case "OUTPUT":
+            newNode = new Output();
+            break;
+        case "AND":
+            newNode = new And();
+            break;
+        case "OR":
+            newNode = new Or();
+            break;
+        default:
+            newNode = new Input();
+            break;
+    }
+    
+    // add to array
+    nodes.push(newNode);
+    SetState(STATE.PLACE);
+    
+    Debug("Placing new " + nodeName + " node");
+}
 
 function Debug(text) {
     let debug = document.getElementById("debug");
@@ -554,11 +814,24 @@ function SetState(state) {
     
     let s = document.getElementById("state");
     s.innerHTML = state.name;
+    
+    // when we switch states, cancel connection process
+    selectedPort = null;
 }
 
 class Coord {
     constructor(x, y) {
         this.x = x;
         this.y = y;
+    }
+}
+
+class Port {
+    constructor(name, pos, char, node) {
+        this.name = name;
+        this.pos = pos;
+        this.char = char;
+        this.node = node;
+        this.connections = [];
     }
 }
