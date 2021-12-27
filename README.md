@@ -9,6 +9,7 @@ Mode is shown in the top right
 | --- | --- |
 | `click 'Add Node'` | Add a node of specified type + Enter Place Mode |
 | `i` | Toggle Inspect Mode |
+| `c` | Toggle Connect Mode |
 | `p` | Toggle Pause Mode |
 
 ### Place Mode
@@ -33,6 +34,17 @@ Mode is shown in the top right
 | `enter` | Execute node action |
 | `delete` | Delete node |
 | `i` | Toggle Inspect Mode |
+| `c` | Toggle Connect Mode |
+
+### Connect Mode
+| Key | Description |
+| --- | --- |
+| `w` | Move cursor up |
+| `a` | Move cursor left |
+| `s` | Move cursor down |
+| `d` | Move cursor right |
+| `enter` | Select node port |
+| `c` | Toggle Connect Mode |
 
 ### Pause Mode
 | Key | Description |
