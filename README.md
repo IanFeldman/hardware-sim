@@ -3,7 +3,7 @@
 Logic gate simulator - still under development.
 
 ## Controls
-Mode is shown in the top right
+*Mode is shown in the top right*
 ### Simulate Mode
 | Key | Description |
 | --- | --- |
@@ -31,6 +31,7 @@ Mode is shown in the top right
 | `d` | Move cursor right |
 | `r` | Rename node |
 | `m` | Move node + Enter Place Mode |
+| `n` | Duplicate node + Enter Place Mode |
 | `enter` | Execute node action |
 | `delete` | Delete node |
 | `i` | Toggle Inspect Mode |
