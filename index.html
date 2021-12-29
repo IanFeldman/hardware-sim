@@ -8,25 +8,26 @@
     </head>
     
     <body onload="RunLoop();">
-        <div class="container">
-            <div class="float-left" id="spinner"></div>
-            <div class="float-left" id="debug">Welcome to hardware sim</div>
-            <div class="float-right" id="state">SIMULATE</div>
+        <div class="debug-dude container">
+            <div class="align-left" id="spinner"></div>
+            <div class="align-left" id="debug">Welcome to hardware sim</div>
+            <div class="align-right" id="state">SIMULATE</div>
         </div>
-        <br>
-        <div id="container">
-            <select name="nodeSelect" class="float-left" id="nodeSelect">
-                <option value="INPUT">INPUT</option>
-                <option value="OUTPUT">OUTPUT</option>
-                <option value="AND">AND</option>
-                <option value="OR">OR</option>
+        <div class="node-dude container">
+            <select name="nodeSelect" class="align-left" id="nodeSelect">
+                <option value="Input">Input</option>
+                <option value="Output">Output</option>
+                <option value="And">And</option>
+                <option value="Nand">Nand</option>
+                <option value="Or">Or</option>
+                <option value="Xor">Xor</option>
+                <option value="Not">Not</option>
             </select>
-            <div onclick="AddNode();">Add Node</div>
+            <div onclick="AddNode();" class="align-left">Add Node</div>
         </div>
-        <br>
-        <div id="container">
+        <div class="field-dude container">
             <div id="field"></div>
-            <div class="float-right" id="info"></div>
+            <div class="align-right" id="info"></div>
         </div>
     </body>
 </html>

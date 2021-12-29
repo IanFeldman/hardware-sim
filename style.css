@@ -4,26 +4,40 @@
 
 .container {
     /* to contain floated children */
-    overflow: hidden;
+    /*overflow: hidden;*/
+    display: flex;
 }
 
-.float-left {
-    float: left;
+.debug-dude {
+    min-height: 5vh;
+}
+
+.node-dude {
+    min-height: 5vh;
+}
+
+.field-dude {
+    max-height: 90vh;
+}
+
+.align-left {
     margin-right: 10px;
+    align-self: center;
 }
 
-.float-right {
-    float:right;
+.align-right {
+    margin-left: auto;
     margin-right: 50px;
+    align-self: center;
 }
 
 #field {
     /* for new line char to work */
     white-space: pre-line;
-    /* for info to go to the right */
-    float: left;
+    font-size: 2.5vh;
 }
 
 #info {
     white-space: pre-line;
+    align-self:start;
 }

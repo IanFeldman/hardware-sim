@@ -13,6 +13,11 @@ var cursorChar = "&#164";
 var connectCursorChar = "+";
 var cursor;
 var selectedPort = null;
+var nextSet = [];
+var pathfinding = false;
+var paths = [];
+var currPath = [];
+var pathChar = "&#149";
 
 /*
  ====================================================================================================
@@ -41,7 +46,7 @@ class STATE {
 */
 
 async function RunLoop() {
-    sim = new Simulation(50, 50, 50);
+    sim = new Simulation(50, 30, 50);
     ticks = 0;
     cursor = new Cursor();
     
@@ -70,7 +75,7 @@ class Simulation {
         for (let j = 0; j < this.height; j++) {
             let newRow = [];
             for (let i = 0; i < this.width; i++) {
-                newRow.push(emptyChar);
+                newRow.push(new Point(i, j));
             }
             this.grid.push(newRow);
         }
@@ -83,51 +88,69 @@ class Cursor {
     }
 }
 
-// LINEAR
+// calculates on set of nodes per frame
 function Evaluate() {
-    let nextSet = [];
-    for (n of nodes) {
-        if (n.constructor.name == "Input") {
-            for (p of n.ports) {                                // all ports
-                for (c of p.connections) {                      // all connections
-                    if (!nextSet.includes(c.node))              // add connected node if not already in nextSet
-                        nextSet.push(c.node);
+    if (nextSet.length == 0) {                                      // if nextSet is empty, add all input nodes
+        for (n of nodes) {
+            if (n.constructor.name == "Input") {
+                for (p of n.ports) {                                // all ports
+                    for (c of p.connections) {                      // all connections
+                        if (!nextSet.includes(c.node))              // add connected node if not already in nextSet
+                            nextSet.push(c.node);
+                    }
                 }
             }
         }
     }
-
-    while (nextSet.length > 0) {                                // while there is a new layer of nodes
-        let currSet = [...nextSet];                             // create copy of nextSet
-        nextSet = [];                                           // clear nextSet
-        for (n of currSet) {                                    // for every node of currSet
-            let inputs = [];                                    // create list to put inputs
-            for (p of n.ports) {                                // for every port of node
-                if (p.char == nodeInChar) {                     // if it is an input port
-                    if (p.connections.length > 0) {             // if input is connected to something
-                        let c = p.connections[0];               // get connection (should only be one connection to input)
-                        inputs.push(c.node.out);                // add connection's node's output to our input list
-                    }
-                    else
-                        inputs.push(0);                         // input port is 0 if not connected to anything
+    
+    let currSet = [...nextSet];                             // create copy of nextSet
+    nextSet = [];                                           // clear nextSet
+    for (n of currSet) {                                    // for every node of currSet
+        let inputs = [];                                    // create list to put inputs
+        for (p of n.ports) {                                // for every port of node
+            if (p.char == nodeInChar) {                     // if it is an input port
+                if (p.connections.length > 0) {             // if input is connected to something
+                    let c = p.connections[0];               // get connection (should only be one connection to input)
+                    inputs.push(c.node.out);                // add connection's node's output to our input list
                 }
-                else {                                          // if it is an output port add its node to nextSet
-                    for (c of p.connections) {                  // for every connection
-                        if (!nextSet.includes(c.node))
-                            nextSet.push(c.node);               // add connected node to nextSet if not already there
-                    }
+                else
+                    inputs.push(0);                         // input port is 0 if not connected to anything
+            }
+            else {                                          // if it is an output port add its node to nextSet
+                for (c of p.connections) {                  // for every connection
+                    if (!nextSet.includes(c.node))
+                        nextSet.push(c.node);               // add connected node to nextSet if not already there
                 }
             }
-            n.Logic(inputs);                                    // do node logic
         }
+        n.Logic(inputs);                                    // do node logic
     }
 }
 
 function UpdateField() {
     // create temp grid that clones sim.grid
     let tempGrid = [];
-    for (let i = 0; i < sim.grid.length; i++)
-        tempGrid[i] = sim.grid[i].slice();
+    for (row of sim.grid) {
+        let tempRow = [];
+        for (point of row) {
+            tempRow.push(point.char);
+        }
+        tempGrid.push(tempRow);
+    }
+    
+    // render paths
+    if (pathfinding) {
+        for (pos of currPath) {
+            tempGrid[pos.y][pos.x] = pathChar;
+        }
+    }
+    
+    // show all paths
+    for (path of paths) {
+        for (pos of path) {
+            tempGrid[pos.y][pos.x] = pathChar;
+        }
+    }
     
     switch(sim.state) {
         case STATE.SIMULATE:
@@ -136,7 +159,7 @@ function UpdateField() {
                     // change grid to output
                     let x = n.pos.x + Math.floor(n.width / 2);
                     let y = n.pos.y + Math.floor(n.height / 2);
-                    tempGrid[y][x] = n.out;
+                    tempGrid[y][x] = n.charSets[n.charSet][n.out];
                 }
             }
             break;
@@ -146,7 +169,7 @@ function UpdateField() {
                     // change grid to output
                     let x = n.pos.x + Math.floor(n.width / 2);
                     let y = n.pos.y + Math.floor(n.height / 2);
-                    tempGrid[y][x] = n.out;
+                    tempGrid[y][x] = n.charSets[n.charSet][n.out];
                 }
             }
             tempGrid[cursor.pos.y][cursor.pos.x] = cursorChar;
@@ -166,14 +189,15 @@ function UpdateField() {
             }
             break;
         case STATE.CONNECT:
-            // show connection lines
             // flash ports
+            /*
             for (n of nodes) {
                 for (p of n.ports) {
                     if (ticks % flashInterval < flashInterval / 2)
                         tempGrid[n.pos.y + p.pos.y][n.pos.x + p.pos.x] = nodeWallChar;
                 }
             }
+             */
             tempGrid[cursor.pos.y][cursor.pos.x] = connectCursorChar;
             break;
     }
@@ -333,6 +357,10 @@ document.addEventListener('keydown', function(event) {
                     MoveNode();
                     ClearInfoText();
                     break;
+                case 78: //n
+                    DuplicateNode();
+                    ClearInfoText();
+                    break;
                 case 80: // p
                     Debug("Error: cannot pause while in inspect mode")
                     break;
@@ -349,20 +377,28 @@ document.addEventListener('keydown', function(event) {
         case (STATE.CONNECT):
             switch (event.keyCode) {
                 case 65: // left
-                    if (cursor.pos.x > 0)
+                    if (cursor.pos.x > 0) {
                         cursor.pos.x -= 1;
+                        Pathfind();
+                    }
                     break;
                 case 68: // right
-                    if (cursor.pos.x < sim.width - 1)
+                    if (cursor.pos.x < sim.width - 1) {
                         cursor.pos.x += 1;
+                        Pathfind();
+                    }
                     break;
                 case 87: // up
-                    if (cursor.pos.y > 0)
+                    if (cursor.pos.y > 0) {
                         cursor.pos.y -= 1;
+                        Pathfind();
+                    }
                     break;
                 case 83: // down
-                    if (cursor.pos.y < sim.height - 1)
+                    if (cursor.pos.y < sim.height - 1) {
                         cursor.pos.y += 1;
+                        Pathfind();
+                    }
                     break;
                 case 13: // enter
                     SelectPort();
@@ -406,13 +442,13 @@ function PlaceNode() {
     
     // loop through first, checking if any point overlaps with another node
     // also add all points to the arrays
-    let currNode = nodes[nodes.length - 1];                             // most recent node
-    for (let j = 0; j < currNode.height; j++) {                         // loop over node height
-        let rowToChange = currNode.pos.y + j;                           // rows to change will be node pos.y + (0 to height-1)
-        for (let i = 0; i < currNode.width; i++) {                      // loop over node width
-            let columnToChange = currNode.pos.x + i;                    // column to change will be node pos.x + (0 to width-1)
-            let nodeChar = currNode.shape[j][i];                        // char to put there
-            if (sim.grid[rowToChange][columnToChange] != emptyChar) {   // if there is a node there, cannot place
+    let currNode = nodes[nodes.length - 1];                                 // most recent node
+    for (let j = 0; j < currNode.height; j++) {                             // loop over node height
+        let rowToChange = currNode.pos.y + j;                               // rows to change will be node pos.y + (0 to height-1)
+        for (let i = 0; i < currNode.width; i++) {                          // loop over node width
+            let columnToChange = currNode.pos.x + i;                        // column to change will be node pos.x + (0 to width-1)
+            let nodeChar = currNode.shape[j][i];                            // char to put there
+            if (sim.grid[rowToChange][columnToChange].char != emptyChar) {  // if there is a node there, cannot place
                 Debug("Error: cannot place on top of other node");
                 return;
             }
@@ -426,7 +462,7 @@ function PlaceNode() {
     
     // update grid
     for (let i = 0; i < charsToPlace.length; i++) {
-        sim.grid[rowsToChange[i]][columnsToChange[i]] = charsToPlace[i];
+        sim.grid[rowsToChange[i]][columnsToChange[i]].char = charsToPlace[i];
     }
     // exit place mode
     SetState(STATE.SIMULATE);
@@ -510,13 +546,40 @@ function DeleteNode() {
         return;
     }
     
+    // remove from grid
     for (let j = 0; j < n.height; j++) {                            // loop over node height
         let rowToChange = n.pos.y + j;                              // rows to change will be node pos.y + (0 to height-1)
         for (let i = 0; i < n.width; i++) {                         // loop over node width
             let columnToChange = n.pos.x + i;                       // column to change will be node pos.x + (0 to width-1)
-            sim.grid[rowToChange][columnToChange] = emptyChar;      // set that point to empty
+            sim.grid[rowToChange][columnToChange].char = emptyChar; // set that point to empty
         }
     }
+    
+    // remove paths from paths[]
+    for (p of n.ports) {
+        for (i of p.pathIndices) {
+            paths[i] = [];
+        }
+    }
+
+    // remove connections
+    for (p of n.ports) {
+        for (c of p.connections) {
+            let i = c.connections.indexOf(p);
+            if (i > -1) {
+                c.connections.splice(i, 1);                 // remove connection from port
+                c.pathIndices.splice(i, 1);                 // remove path from port indices
+            }
+        }
+    }
+    
+    // remove empty paths from paths[]
+    let newPaths = [];
+    for (path of paths) {
+        if (path.length > 0)
+            newPaths.push(path);
+    }
+    paths = [...newPaths];
     
     Debug("Node deleted");
 }
@@ -538,7 +601,7 @@ function Rename() {
     // change grid
     let x = n.pos.x + Math.floor(n.width / 2);
     let y = n.pos.y + Math.floor(n.height / 2);
-    sim.grid[y][x] = n.name.substr(0,1);
+    sim.grid[y][x].char = n.name.substr(0,1);
 }
 
 function MoveNode() {
@@ -547,11 +610,41 @@ function MoveNode() {
         Debug("Error no node to move here");
         return;
     }
+    
+    let type = n.constructor.name;
+    let nX = n.pos.x;
+    let nY = n.pos.y;
 
     DeleteNode();   // delete node
-    nodes.push(n);  // re add it
-    Debug("Moving node");
     
+    let newNode = CreateNode(type);
+    nodes.push(newNode);  // re add it
+    
+    newNode.pos.x = nX;
+    newNode.pos.y = nY;
+    
+    Debug("Moving node");
+    SetState(STATE.PLACE);
+}
+
+function DuplicateNode() {
+    let n = GetNode();
+    if (n == null) {
+        Debug("Error no node to move here");
+        return;
+    }
+    
+    let type = n.constructor.name;
+    let nX = n.pos.x;
+    let nY = n.pos.y;
+    
+    let newNode = CreateNode(type);
+    nodes.push(newNode);  // re add it
+    
+    newNode.pos.x = nX;
+    newNode.pos.y = nY;
+    
+    Debug("Duplicated node");
     SetState(STATE.PLACE);
 }
 
@@ -602,6 +695,7 @@ function SelectPort() {
     // set this as selectedPort or as target port
     if (selectedPort == null) {
         selectedPort = currPort;
+        pathfinding = true;
         Debug("Port selected");
     }
     else {
@@ -615,6 +709,9 @@ function SelectPort() {
             Debug("Error: ports cannot be of the same type");
             return;
         }
+        pathfinding = false;
+        paths.push(currPath);
+        
         // disconnect ports
         for (p1 of selectedPort.connections) {
             for (p2 of currPort.connections) {
@@ -628,6 +725,9 @@ function SelectPort() {
                         Debug("Error removing connection from " + selectedPort.name);
                         return;
                     }
+                    // remove path from selected port
+                    selectedPort.pathIndices.splice(index, 1);
+                    
                     // remove currPort connection:
                     index = currPort.connections.indexOf(p2);
                     if (index > -1)
@@ -636,6 +736,10 @@ function SelectPort() {
                         Debug("Error removing connection from " + currPort.name);
                         return;
                     }
+                    // remove path from paths
+                    paths.splice(currPort.pathIndices(index), 1);
+                    // remove path from port
+                    currPort.pathIndices.splice(index, 1);
                     selectedPort = null;
                     return;
                 }
@@ -643,11 +747,33 @@ function SelectPort() {
         }
         // connect ports
         selectedPort.connections.push(currPort);
-        currPort.connections.push(selectedPort)
+        currPort.connections.push(selectedPort);
+        // save path index to ports
+        let pIndex = paths.length - 1;
+        selectedPort.pathIndices.push(pIndex);
+        currPort.pathIndices.push(pIndex);
         // selected port to null
         Debug("Connection made between " + selectedPort.name + " and " + currPort.name);
         selectedPort = null;
     }
+}
+
+function Pathfind() {
+    if (!pathfinding)
+        return;
+    let c = sim.grid[cursor.pos.y][cursor.pos.x].char;
+    if (c != emptyChar && c != nodeInChar && c != nodeOutChar)
+        return;
+    
+    GetPathNeighbors();
+    
+    let posX = selectedPort.pos.x + selectedPort.node.pos.x;
+    let posY = selectedPort.pos.y + selectedPort.node.pos.y;
+    let start = sim.grid[posY][posX];
+    
+    let goal = sim.grid[cursor.pos.y][cursor.pos.x];
+    
+    currPath = CreatePath(start, goal);
 }
 
 /*
@@ -701,7 +827,8 @@ class Node {
 class Input extends Node {
     constructor() {
         super("Input node", "I", 3, 3);
-        this.info = ["type", "name", "out"];
+        this.info = ["type", "name", "out", "action"];
+        this.action = "Toggle input on or off";
         this.CreatePort("outPort", new Coord(2, 1), nodeOutChar);
     }
     Action() { // toggle value
@@ -714,9 +841,15 @@ class Input extends Node {
 class Output extends Node {
     constructor() {
         super("Output", "O", 3, 3);
-        this.info = ["type", "name", "out"];
+        this.info = ["type", "name", "out", "action"];
+        this.action = "Toggle char set";
         this.CreatePort("inPort", new Coord(0, 1), nodeInChar);
         this.CreatePort("outPort", new Coord(2, 1), nodeOutChar);
+        this.charSets = [["0", "1"], ["&nbsp", "&#9632"]];
+        this.charSet = 0;
+    }
+    Action() { // toggle char set
+        this.charSet = (this.charSet + 1) % this.charSets.length;
     }
     Logic(inputs) {
         this.out = inputs[0];
@@ -739,6 +872,22 @@ class And extends Node {
     }
 }
 
+class Nand extends Node {
+    constructor() {
+        super("Nand gate", "n", 5, 5);
+        this.info = ["type", "name", "out"];
+        this.CreatePort("inPort1", new Coord(0, 1), nodeInChar);
+        this.CreatePort("inPort2", new Coord(0, 3), nodeInChar);
+        this.CreatePort("outPort", new Coord(4, 2), nodeOutChar);
+    }
+    Logic(inputs) {
+        if (inputs[0] + inputs[1] == 2)
+            this.out = 0;
+        else
+            this.out = 1;
+    }
+}
+
 class Or extends Node {
     constructor() {
         super("Or gate", "O", 5, 5);
@@ -755,9 +904,37 @@ class Or extends Node {
     }
 }
 
+class Xor extends Node {
+    constructor() {
+        super("Xor gate", "X", 5, 5);
+        this.info = ["type", "name", "out"];
+        this.CreatePort("inPort1", new Coord(0, 1), nodeInChar);
+        this.CreatePort("inPort2", new Coord(0, 3), nodeInChar);
+        this.CreatePort("outPort", new Coord(4, 2), nodeOutChar);
+    }
+    Logic(inputs) {
+        if (inputs[0] + inputs[1] == 1)
+            this.out = 1;
+        else
+            this.out = 0;
+    }
+}
+
+class Not extends Node {
+    constructor() {
+        super("Not gate", "N", 3, 3);
+        this.info = ["type", "name", "out"];
+        this.CreatePort("inPort", new Coord(0, 1), nodeInChar);
+        this.CreatePort("outPort", new Coord(2, 1), nodeOutChar);
+    }
+    Logic(inputs) {
+        this.out = 1 - inputs[0];
+    }
+}
+
 /*
  ====================================================================================================
-    FUNCTIONALITY
+    MISC
  ====================================================================================================
 */
 
@@ -773,30 +950,46 @@ function AddNode() {
     // get node from selection thing
     let nodeName = document.getElementById("nodeSelect").value;
     // create node
-    var newNode;
-    switch (nodeName) {
-        case "INPUT":
-            newNode = new Input();
-            break;
-        case "OUTPUT":
-            newNode = new Output();
-            break;
-        case "AND":
-            newNode = new And();
-            break;
-        case "OR":
-            newNode = new Or();
-            break;
-        default:
-            newNode = new Input();
-            break;
-    }
+    let newNode = CreateNode(nodeName);
     
     // add to array
     nodes.push(newNode);
+    // set position
+    if (cursor.pos.x + newNode.width > sim.width - 1) {
+        newNode.pos.x = sim.width - newNode.width;
+    }
+    else
+        newNode.pos.x = cursor.pos.x;
+    if (cursor.pos.y + newNode.height > sim.height - 1) {
+        newNode.pos.y = sim.height - newNode.height;
+    }
+    else
+        newNode.pos.y = cursor.pos.y;
+    
     SetState(STATE.PLACE);
     
     Debug("Placing new " + nodeName + " node");
+}
+
+function CreateNode(type) {
+    switch (type) {
+        case "Input":
+            return new Input();
+        case "Output":
+            return new Output();
+        case "And":
+            return new And();
+        case "Nand":
+            return new Nand();
+        case "Or":
+            return new Or();
+        case "Xor":
+            return new Xor();
+        case "Not":
+            return new Not();
+        default:
+            return new Input();
+    }
 }
 
 function Debug(text) {
@@ -833,5 +1026,145 @@ class Port {
         this.char = char;
         this.node = node;
         this.connections = [];
+        this.pathIndices = [];
     }
+}
+
+/*
+ ====================================================================================================
+    A*
+ ====================================================================================================
+*/
+
+class Point {
+    constructor(x, y) {
+        this.char = emptyChar;
+        this.neighbors = [];
+        this.pos = new Coord(x, y);
+        this.f = 0;
+        this.g = 0;
+        this.h = 0;
+        this.prevNode = null;
+    }
+    Clear() {
+        this.neighbors = [];
+        this.f = 0;
+        this.g = 0;
+        this.h = 0;
+        this.prevNode = null;
+    }
+}
+
+function GetPathNeighbors() {
+    for (let j = 0; j < sim.height; j++) {
+        for (let i = 0; i < sim.width; i++) {
+            let point = sim.grid[j][i];
+            point.Clear();
+            if (point.char != emptyChar && point.char != nodeInChar && point.char != nodeOutChar)
+                continue;
+            
+            // add left and right neighbors
+            if (i < sim.width - 1) {
+                let c = sim.grid[j][i + 1].char;
+                if (c == emptyChar || c == nodeInChar || c == nodeOutChar)
+                    point.neighbors.push(sim.grid[j][i + 1]);
+            }
+            if (i > 0) {
+                let c = sim.grid[j][i - 1].char;
+                if (c == emptyChar || c == nodeInChar || c == nodeOutChar)
+                    point.neighbors.push(sim.grid[j][i - 1]);
+            }
+            
+            // add up and down neighbors
+            if (j < sim.height - 1) {
+                let c = sim.grid[j + 1][i].char;
+                if (c == emptyChar || c == nodeInChar || c == nodeOutChar)
+                    point.neighbors.push(sim.grid[j + 1][i]);
+            }
+            if (j > 0) {
+                let c = sim.grid[j - 1][i].char;
+                if (c == emptyChar || c == nodeInChar || c == nodeOutChar)
+                    point.neighbors.push(sim.grid[j - 1][i]);
+            }
+        }
+    }
+}
+
+function CreatePath(start, goal) {
+    let openSet = [];
+    let closedSet = [];
+    
+    openSet.push(start);
+    
+    while (openSet.length > 0) {
+        let currNode = null;
+        // currNode = node in open set with lowest fscore
+        let maxF = Math.pow(10, 1000);
+        for (n of openSet) {
+            if (n.f < maxF) {
+                currNode = n;
+                maxF = n.f;
+            }
+        }
+        if (currNode == null) {
+            Debug("Error: cannot find path node with lowest f score");
+            return;
+        }
+        
+        // remove currNode from openset
+        let index = openSet.indexOf(currNode);
+        if (index > -1)
+            openSet.splice(index, 1);
+        else {
+            Debug("Error cannot remove currNode from openSet");
+            return;
+        }
+        
+        // ad currNode to closedSet
+        closedSet.push(currNode);
+        
+        if (currNode == goal) {
+            // done!
+            let path = [currNode.pos];
+            let prevNode = currNode.prevNode;
+            while (prevNode != null) {
+                let n = prevNode;
+                path.push(n.pos);
+                prevNode = n.prevNode;
+            }
+            return path;
+        }
+        
+        // loop over neighbors
+        for (neighbor of currNode.neighbors) {
+            // skip this neighbor if he is in closed set
+            if (closedSet.includes(neighbor))
+                continue;
+            
+            let distToCurr = Math.abs(currNode.pos.x - neighbor.pos.x) + Math.abs(currNode.pos.y - neighbor.pos.y);
+            let g = currNode.g + distToCurr;
+            
+            let distToEnd = Math.abs(goal.pos.x - neighbor.pos.x) + Math.abs(goal.pos.y - neighbor.pos.y);
+            let h = distToEnd;
+            
+            let f = neighbor.g + neighbor.h;
+            
+            if (g > neighbor.g) {
+                neighbor.prevNode = currNode;
+                neighbor.f = f;
+                neighbor.g = g;
+                neighbor.h = h;
+                
+                if (!openSet.includes(neighbor))
+                    openSet.push(neighbor);
+            }
+        }
+    }
+    
+    Debug("No path found");
+    pathfinding = false;
+    selectedPort = null;
+    GetPathNeighbors();
+    SetState(STATE.SIMULATE);
+    return [];
 }
