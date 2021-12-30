@@ -1,6 +1,8 @@
 # hardware-sim
 
-Logic gate simulator - still under development.
+Simulate the function of basic logic gates and see the output - Demo [here](https://ianfeldman.dev/demos/hardware-sim/index.html)
+
+![screenshot](https://i.imgur.com/CPkO3i6.png)
 
 ## Controls
 *Mode is shown in the top right*
