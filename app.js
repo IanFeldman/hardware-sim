@@ -404,9 +404,7 @@ document.addEventListener('keydown', function(event) {
                     SelectPort();
                     break;
                 case 8: // del
-                    selectedPort = null;
-                    currPath = null;
-                    pathfinding = false;
+                    DeletePath();
                     break;
                 case 80: // p
                     Debug("Error: cannot pause while in connect mode")
@@ -706,86 +704,16 @@ function SelectPort() {
             Debug("Error: ports cannot be of the same type");
             return;
         }
-        pathfinding = false;
-        
-        // disconnect ports
         for (p1 of selectedPort.connections) {
             for (p2 of currPort.connections) {
                 if (p1 == currPort && p2 == selectedPort) {
-                    Debug("Connection removed between " + selectedPort.name + " and " + currPort.name);
-                    // remove selectedPort connection:
-                    let index = selectedPort.connections.indexOf(p1);
-                    if (index > -1)
-                        selectedPort.connections.splice(index, 1);
-                    else {
-                        Debug("Error removing connection from " + selectedPort.name);
-                        return;
-                    }
-                    
-                    let pathToRemove = null;
-                    // remove path from selected port
-                    for (let i = 0; i < selectedPort.paths.length; i++) {
-                        let path = selectedPort.paths[i];
-                        
-                        let xI = selectedPort.pos.x + selectedPort.node.pos.x;
-                        let yI = selectedPort.pos.y + selectedPort.node.pos.y;
-                        let xF = currPort.pos.x + currPort.node.pos.x;
-                        let yF = currPort.pos.y + currPort.node.pos.y;
-                        
-                        let pXF = path.positions[0].x;
-                        let pYF = path.positions[0].y;
-                        let pXI = path.positions[path.positions.length - 1].x;
-                        let pYI = path.positions[path.positions.length - 1].y;
-                        
-                        // if the beginning and end positions of each path are equal
-                        if (xI == pXI && yI == pYI) {
-                            if (xF == pXF && yF == pYF) {
-                                // this is the path
-                                pathToRemove = path;
-                                selectedPort.paths.splice(i, 1);
-                                break;
-                            }
-                        }
-                        else if (xI == pXF && yI == pYF) {
-                            if (xF == pXI && yF == pYI) {
-                                pathToRemove = path;
-                                selectedPort.paths.splice(i, 1);
-                                break;
-                            }
-                        }
-                    }
-                    
-                    // remove currPort connection:
-                    index = currPort.connections.indexOf(p2);
-                    if (index > -1)
-                        currPort.connections.splice(index, 1)
-                    else {
-                        Debug("Error removing connection from " + currPort.name);
-                        return;
-                    }
-                    // remove path from currPort
-                    if (pathToRemove == null) {
-                        Debug("Error: cannot remove path");
-                        return;
-                    }
-                    else {
-                        let index = currPort.paths.indexOf(pathToRemove);
-                        if (index > -1)
-                            currPort.paths.splice(index, 1);
-                    }
-                    
-                    // remove path from paths
-                    index = paths.indexOf(pathToRemove);
-                    if (index > -1)
-                        paths.splice(pathToRemove, 1);
-                    
-                    selectedPort = null;
-                    currPath = null;
-                    
+                    Debug("Error: connection already created between " + selectedPort.name + " and " + currPort.name);
                     return;
                 }
             }
         }
+        
+        pathfinding = false;
         // connect ports
         selectedPort.connections.push(currPort);
         currPort.connections.push(selectedPort);
@@ -797,6 +725,64 @@ function SelectPort() {
         // selected port to null
         Debug("Connection made between " + selectedPort.name + " and " + currPort.name);
         selectedPort = null;
+    }
+}
+
+function DeletePath() {
+    // check if over path
+    let pathToRemove = null;
+    for (path of paths) {
+        for (p of path.positions) {
+            if (p.x == cursor.pos.x && p.y == cursor.pos.y)
+                pathToRemove = path;
+        }
+    }
+    
+    // if not over path
+    if (pathToRemove == null) {
+        // cancel path placement
+        selectedPort = null;
+        currPath = null;
+        pathfinding = false;
+        return;
+    }
+    
+    // else
+    // remove from paths
+    let index = paths.indexOf(pathToRemove);
+    if (index > -1)
+        paths.splice(index, 1);
+    
+    // remove from connected ports
+    let ports = [];
+    for (n of nodes) {
+        for (p of n.ports) {
+            for (let i = 0; i < p.paths.length; i++) {
+                if (p.paths[i] == pathToRemove) {
+                    p.paths.splice(i, 1);
+                    ports.push(p);
+                    if (ports.length == 2)
+                        break;
+                }
+            }
+        }
+    }
+    
+    let a = ports[0];
+    let b = ports[1];
+    
+    // remove connection
+    for (let i = 0; i < a.connections.length; i++) {
+        if (a.connections[i] == b) {
+            a.connections.splice(i, 1);
+            break;
+        }
+    }
+    for (let i = 0; i < b.connections.length; i++) {
+        if (b.connections[i] == a) {
+            b.connections.splice(i, 1);
+            break;
+        }
     }
 }
 
