@@ -47,7 +47,7 @@ Simulate the function of basic logic gates and see the output - Demo [here](http
 | `s` | Move cursor down |
 | `d` | Move cursor right |
 | `enter` | Select node port |
-|`delete` | Cancel connection |
+|`delete` | Cancel/delete connection |
 | `c` | Toggle Connect Mode |
 
 ### Pause Mode
