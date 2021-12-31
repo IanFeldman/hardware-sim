@@ -573,7 +573,7 @@ function DeleteNode() {
             let i = c.connections.indexOf(p);
             if (i > -1) {
                 c.connections.splice(i, 1);                 // remove connection from port
-                c.pathIndices.splice(i, 1);                 // remove path from port indices
+                c.paths.splice(i, 1);                       // remove path from port indices
             }
         }
     }
