@@ -779,6 +779,9 @@ function SelectPort() {
                     if (index > -1)
                         paths.splice(pathToRemove, 1);
                     
+                    selectedPort = null;
+                    currPath = null;
+                    
                     return;
                 }
             }
