@@ -1,6 +1,6 @@
 # hardware-sim
 
-Simulate the function of basic logic gates and see the output - Demo [here](https://ianfeldman.dev/demos/hardware-sim/index.html)
+Simulate the function of basic logic gates and visualize the output.
 
 ![screenshot](https://i.imgur.com/CPkO3i6.png)
 
